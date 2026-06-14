@@ -200,12 +200,13 @@ function renderPicker(containerId){
   const wrap=document.getElementById(containerId);wrap.innerHTML=html;
   wrap.querySelectorAll(".pk").forEach(b=>b.onclick=()=>{
     const c={r:+b.dataset.r,s:+b.dataset.s};
-    if(S.active){S.active.arr[S.active.idx]=c;advanceActive();}
+    if(S.active){arrOf(S.active.id)[S.active.idx]=c;advanceActive();}
     rerender();});
 }
+function arrOf(id){return id==="hole"?S.hole:S.board;}
 function advanceActive(){
-  if(!S.active)return;const a=S.active;
-  for(let i=0;i<a.arr.length;i++)if(!a.arr[i]){S.active={arr:a.arr,idx:i,id:a.id};return;}
+  if(!S.active)return;const arr=arrOf(S.active.id);
+  for(let i=0;i<arr.length;i++)if(!arr[i]){S.active={idx:i,id:S.active.id};return;}
 }
 
 /* ===================== SETUP ===================== */
@@ -238,7 +239,7 @@ function renderSetup(){
   hs.innerHTML=S.hole.map((c,i)=>{const act=(S.active&&S.active.id==="hole"&&S.active.idx===i)?" active":"";
     return `<div class="slot${act}" data-i="${i}">${c?cardFace(c,'pc'):'<span class="ph">+</span>'}</div>`;}).join("");
   hs.querySelectorAll(".slot").forEach(el=>el.onclick=()=>{const i=+el.dataset.i;
-    if(S.hole[i])S.hole[i]=null;S.active={arr:S.hole,idx:i,id:"hole"};rerender();});
+    if(S.hole[i])S.hole[i]=null;S.active={idx:i,id:"hole"};rerender();});
   renderPicker("holePicker");
 }
 function checkStart(){document.getElementById("startBtn").disabled=!(S.table&&S.pos&&S.nOpp&&S.hole[0]&&S.hole[1]);}
@@ -356,14 +357,14 @@ function renderPostflop(){
     // assicura il numero giusto di slot
     while(S.board.length<need)S.board.push(null);
     S.board=S.board.slice(0,need);
-    if(!S.active||S.active.id!=="board"){for(let i=0;i<need;i++)if(!S.board[i]){S.active={arr:S.board,idx:i,id:"board"};break;}}
+    if(!S.active||S.active.id!=="board"){for(let i=0;i<need;i++)if(!S.board[i]){S.active={idx:i,id:"board"};break;}}
     step.innerHTML=`<p class="eyebrow">${name}</p><p class="q">Inserisci le carte del board (${name.toLowerCase()}).</p>
       <div class="slots" id="bSlots"></div><div class="picker" id="bPicker"></div>`;
     const bs=document.getElementById("bSlots");
     bs.innerHTML=S.board.map((c,i)=>{const act=(S.active&&S.active.id==="board"&&S.active.idx===i)?" active":"";
       return `<div class="slot${act}" data-i="${i}">${c?cardFace(c,'pc'):'<span class="ph">+</span>'}</div>`;}).join("");
     bs.querySelectorAll(".slot").forEach(el=>el.onclick=()=>{const i=+el.dataset.i;
-      if(S.board[i])S.board[i]=null;S.active={arr:S.board,idx:i,id:"board"};rerender();});
+      if(S.board[i])S.board[i]=null;S.active={idx:i,id:"board"};rerender();});
     renderPicker("bPicker");
     return;
   }
