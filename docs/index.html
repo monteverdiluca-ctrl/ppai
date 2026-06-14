@@ -376,8 +376,8 @@ function renderPostflop(){
       <button class="chip" data-a="bet">Affronto una puntata</button>
     </div>
     <div class="row" id="betFields" style="margin-top:12px">
-      <div class="field"><label>Piatto attuale (BB)</label><input id="pot" type="number" value="${S.pot.toFixed(1)}" step="0.5" min="0"></div>
-      <div class="field hidden" id="callField"><label>Puntata da chiamare (BB)</label><input id="tocall" type="number" value="${(S.pot*0.66).toFixed(1)}" step="0.5" min="0"></div>
+      <div class="field"><label>Piatto a inizio strada (BB)</label><input id="pot" type="number" value="${S.pot.toFixed(1)}" step="0.5" min="0"></div>
+      <div class="field hidden" id="vbetField"><label>Puntata del villain (BB)</label><input id="vbet" type="number" value="${(S.pot*0.66).toFixed(1)}" step="0.5" min="0"></div>
       <div class="field"><label>Avversari (range)</label><select id="vt">
         <option value="1">Casuale</option><option value="0.6" selected>Medio</option><option value="0.3">Stretto</option></select></div>
     </div>
@@ -386,30 +386,39 @@ function renderPostflop(){
   let facing=false;
   document.querySelectorAll("#actChips .chip").forEach(b=>b.onclick=()=>{
     document.querySelectorAll("#actChips .chip").forEach(x=>x.classList.remove("on"));b.classList.add("on");
-    facing=(b.dataset.a==="bet");document.getElementById("callField").classList.toggle("hidden",!facing);});
+    facing=(b.dataset.a==="bet");document.getElementById("vbetField").classList.toggle("hidden",!facing);});
   document.getElementById("calc").onclick=()=>{
-    const pot=Math.max(0,parseFloat(document.getElementById("pot").value)||0);
-    const toCall=facing?Math.max(0,parseFloat(document.getElementById("tocall").value)||0):0;
+    const potStart=Math.max(0,parseFloat(document.getElementById("pot").value)||0);
+    const villainBet=facing?Math.max(0,parseFloat(document.getElementById("vbet").value)||0):0;
     const frac=parseFloat(document.getElementById("vt").value);
-    S.pot=pot;
+    const potForOdds=potStart+villainBet;          // il piatto che provi a vincere quando chiami
+    const toCall=villainBet;
     const board=S.board.filter(Boolean);
     const eq=equity(S.hole,board,S.nOpp,frac,S.nOpp>1?2500:3500);
-    const potOdds=toCall>0?toCall/(pot+toCall):0;
-    let d;
+    const potOdds=toCall>0?toCall/(potForOdds+toCall):0;
+    let d,newPot;
     if(toCall>0){
-      if(eq>=0.75) d={act:"RILANCIA",size:"per valore",tone:"raise",why:`Equity altissima ${pct(eq)} vs ${S.nOpp}: spingi.`};
-      else if(eq>=potOdds) d={act:"CALL",size:"",tone:"call",why:`Equity ${pct(eq)} ≥ pot odds ${pct(potOdds)}: chiamare è profittevole.`};
-      else d={act:"FOLD",size:"",tone:"fold",why:`Equity ${pct(eq)} < pot odds ${pct(potOdds)}: lascia.`};
+      if(eq>=0.75){d={act:"RILANCIA",size:"per valore",tone:"raise",why:`Equity altissima ${pct(eq)} vs ${S.nOpp}: spingi.`};
+        newPot=potStart+6*villainBet;}             // stima: rilanci ~3x e il villain chiama
+      else if(eq>=potOdds){d={act:"CALL",size:"",tone:"call",why:`Equity ${pct(eq)} ≥ pot odds ${pct(potOdds)}: chiamare è profittevole.`};
+        newPot=potStart+2*villainBet;}             // la sua puntata + la tua chiamata
+      else{d={act:"FOLD",size:"",tone:"fold",why:`Equity ${pct(eq)} < pot odds ${pct(potOdds)}: lascia.`};newPot=null;}
     } else {
-      if(eq>=0.60) d={act:"PUNTA",size:"~2/3 del piatto",tone:"raise",why:`Buona equity ${pct(eq)} vs ${S.nOpp}: punta valore.`};
-      else d={act:"CHECK",size:"",tone:"check",why:`Equity media ${pct(eq)}: controlla e prosegui.`};
+      const betSize=Math.round(0.66*potStart*10)/10;
+      if(eq>=0.60){d={act:"PUNTA",size:`~${betSize} BB (2/3 piatto)`,tone:"raise",why:`Buona equity ${pct(eq)} vs ${S.nOpp}: punta valore.`};
+        newPot=potStart+2*betSize;}                // stima: vieni pagato
+      else{d={act:"CHECK",size:"",tone:"check",why:`Equity media ${pct(eq)}: controlla e prosegui.`};newPot=potStart;}
     }
-    const nextLabel=S.street==="river"?"Fine mano":"Prossima strada →";
-    document.getElementById("out").innerHTML=verdictHTML(d,eq,potOdds)+
+    const potLine=(newPot===null)?"":
+      `<p class="note" style="text-align:center">Piatto dopo l'azione: <b style="color:var(--text)">${newPot.toFixed(1)} BB</b> — lo porto alla prossima strada (puoi correggerlo).</p>`;
+    const nextLabel=(d.tone==="fold")?"Mano finita":(S.street==="river")?"Fine mano":"Prossima strada →";
+    document.getElementById("out").innerHTML=verdictHTML(d,eq,potOdds)+potLine+
       `<div class="btns" style="justify-content:center">
          <button class="btn" id="next">${nextLabel}</button></div>`;
     document.getElementById("next").onclick=()=>{
+      if(d.tone==="fold")return endHand("Hai foldato. Mano finita.");
       if(S.street==="river")return endHand("Mano completata. Buona fortuna allo showdown!");
+      S.pot=newPot;                                // il piatto si aggiorna davvero
       S.street=S.street==="flop"?"turn":"river";S.active=null;rerender();};
   };
 }
