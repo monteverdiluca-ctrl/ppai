@@ -81,16 +81,20 @@
   <!-- ============ SETUP ============ -->
   <div id="setup">
     <div class="panel">
-      <p class="eyebrow">1 · La tua posizione</p>
+      <p class="eyebrow">1 · Giocatori al tavolo</p>
+      <div class="chips" id="tableChips"></div>
+    </div>
+    <div class="panel" id="posPanel">
+      <p class="eyebrow">2 · La tua posizione</p>
       <div class="chips" id="posChips"></div>
       <p class="note" id="posNote"></p>
     </div>
     <div class="panel">
-      <p class="eyebrow">2 · Avversari nella mano</p>
+      <p class="eyebrow">3 · Avversari nella mano</p>
       <div class="chips" id="oppChips"></div>
     </div>
     <div class="panel">
-      <p class="eyebrow">3 · Le tue carte</p>
+      <p class="eyebrow">4 · Le tue carte</p>
       <div class="slots" id="holeSlots"></div>
       <div class="picker" id="holePicker"></div>
     </div>
@@ -117,6 +121,10 @@ const RFI = {
  SB:new Set(["22","33","44","54s","55","65s","66","75s","76s","77","86s","87s","88","96s","97s","98o","98s","99","A2s","A3s","A4o","A4s","A5o","A5s","A6o","A6s","A7o","A7s","A8o","A8s","A9o","A9s","AA","AJo","AJs","AKo","AKs","AQo","AQs","ATo","ATs","J5s","J6s","J7s","J8s","J9o","J9s","JJ","JTo","JTs","K2s","K3s","K4s","K5s","K6s","K7s","K8o","K8s","K9o","K9s","KJo","KJs","KK","KQo","KQs","KTo","KTs","Q3s","Q4s","Q5s","Q6s","Q7s","Q8s","Q9o","Q9s","QJo","QJs","QQ","QTo","QTs","T6s","T7s","T8o","T8s","T9o","T9s","TT"]),
  BB:new Set()
 };
+const BTN3=new Set(["22","33","43s","44","53s","54s","55","64s","65s","66","74s","75s","76o","76s","77","85s","86s","87o","87s","88","95s","96s","97o","97s","98o","98s","99","A2o","A2s","A3o","A3s","A4o","A4s","A5o","A5s","A6o","A6s","A7o","A7s","A8o","A8s","A9o","A9s","AA","AJo","AJs","AKo","AKs","AQo","AQs","ATo","ATs","J4s","J5s","J6s","J7s","J8o","J8s","J9o","J9s","JJ","JTo","JTs","K2s","K3s","K4s","K5s","K6o","K6s","K7o","K7s","K8o","K8s","K9o","K9s","KJo","KJs","KK","KQo","KQs","KTo","KTs","Q2s","Q3s","Q4s","Q5s","Q6s","Q7s","Q8o","Q8s","Q9o","Q9s","QJo","QJs","QQ","QTo","QTs","T6s","T7s","T8o","T8s","T9o","T9s","TT"]);
+const POSITIONS={3:["BTN","SB","BB"],6:["UTG","MP","CO","BTN","SB","BB"]};
+const RFI_PCT={3:{BTN:53,SB:42,BB:0},6:{UTG:14,MP:18,CO:25,BTN:42,SB:42,BB:0}};
+function rfiFor(table,pos){ return (table===3&&pos==="BTN")?BTN3:RFI[pos]; }
 const THREEBET=new Set(["A4s","A5s","AA","AKo","AKs","KK","KQs","QQ"]);
 const FOURBET=new Set(["AA","AKs","KK"]);
 const OPEN_SIZE={UTG:"2.5 BB",MP:"2.5 BB",CO:"2.3 BB",BTN:"2.2 BB",SB:"3 BB",BB:"—"};
@@ -172,7 +180,7 @@ function equity(hole,board,nOpp,oppFrac,sims){
 }
 
 /* ===================== STATO ===================== */
-const S={pos:null,nOpp:null,hole:[null,null],board:[],street:"setup",pot:0,toCall:0,
+const S={table:null,pos:null,nOpp:null,hole:[null,null],board:[],street:"setup",pot:0,toCall:0,
   villainFrac:0.55,scenario:null,active:null};
 const pct=x=>Math.round(x*100)+"%";
 
@@ -202,13 +210,24 @@ function advanceActive(){
 
 /* ===================== SETUP ===================== */
 function renderSetup(){
+  const tableC=document.getElementById("tableChips");
+  tableC.innerHTML=[[3,"3 giocatori"],[6,"6 giocatori"]].map(([n,l])=>
+    `<button class="chip${S.table===n?' on':''}" data-n="${n}">${l}</button>`).join("");
+  tableC.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{S.table=+b.dataset.n;
+    if(S.pos&&!POSITIONS[S.table].includes(S.pos))S.pos=null;
+    renderSetup();checkStart();});
+
+  const posPanel=document.getElementById("posPanel");
+  posPanel.style.opacity=S.table?"1":"0.45";
   const posC=document.getElementById("posChips");
-  posC.innerHTML=["UTG","MP","CO","BTN","SB","BB"].map(p=>
-    `<button class="chip${S.pos===p?' on':''}" data-p="${p}">${p}</button>`).join("");
+  const positions=S.table?POSITIONS[S.table]:[];
+  posC.innerHTML=positions.length?positions.map(p=>
+    `<button class="chip${S.pos===p?' on':''}" data-p="${p}">${p}</button>`).join("")
+    :'<span class="note">Scegli prima il numero di giocatori.</span>';
   posC.querySelectorAll(".chip").forEach(b=>b.onclick=()=>{S.pos=b.dataset.p;
     document.getElementById("posNote").textContent =
       S.pos==="BB"?"Dal big blind di solito non apri: sei l'ultimo a parlare. Userai lo scenario \u201caffronto un rilancio\u201d.":
-      `Range di apertura di riferimento: ~${({UTG:14,MP:18,CO:25,BTN:42,SB:42,BB:0})[S.pos]}% delle mani.`;
+      `Range di apertura di riferimento: ~${RFI_PCT[S.table][S.pos]}% delle mani${S.table===3?" (tavolo 3-handed, più largo)":""}.`;
     renderSetup();checkStart();});
   const oppC=document.getElementById("oppChips");
   oppC.innerHTML=[[1,"1 avversario (heads-up)"],[2,"2 avversari"]].map(([n,l])=>
@@ -222,12 +241,13 @@ function renderSetup(){
     if(S.hole[i])S.hole[i]=null;S.active={arr:S.hole,idx:i,id:"hole"};rerender();});
   renderPicker("holePicker");
 }
-function checkStart(){document.getElementById("startBtn").disabled=!(S.pos&&S.nOpp&&S.hole[0]&&S.hole[1]);}
+function checkStart(){document.getElementById("startBtn").disabled=!(S.table&&S.pos&&S.nOpp&&S.hole[0]&&S.hole[1]);}
 
 /* ===================== STATO MANO (barra) ===================== */
 function stateBar(){
   document.getElementById("stateBar").innerHTML=
-    `<span>posizione <b>${S.pos}</b></span>
+    `<span>tavolo <b>${S.table}-max</b></span>
+     <span>posizione <b>${S.pos}</b></span>
      <span>avversari <b>${S.nOpp}</b></span>
      <span>mano <b class="mini">${miniCards(S.hole)}</b></span>
      ${S.board.length?`<span>board <b class="mini">${miniCards(S.board)}</b></span>`:""}
@@ -265,7 +285,7 @@ function renderPreflop(){
     if(S.pos==="BB"){step.innerHTML=`<p class="reason">Dal BB non si apre: scegli \u201cUn avversario ha già rilanciato\u201d.</p>
       <div class="btns"><button class="btn" id="bk">Indietro</button></div>`;
       document.getElementById("bk").onclick=()=>{S.scenario=null;renderPreflop();};return;}
-    const inRange=RFI[S.pos].has(key);
+    const inRange=rfiFor(S.table,S.pos).has(key);
     const eq=equity(S.hole,[],S.nOpp,1,2500);
     const d=inRange?{act:"APRI",size:OPEN_SIZE[S.pos],tone:"raise",
         why:`<b>${key}</b> è dentro la range di apertura da <b>${S.pos}</b>. Equity vs ${S.nOpp} mano/i casuale/i ${pct(eq)}.`}
@@ -406,7 +426,7 @@ function rerender(){
 }
 
 /* ===================== INIT ===================== */
-function resetAll(){Object.assign(S,{pos:null,nOpp:null,hole:[null,null],board:[],street:"setup",
+function resetAll(){Object.assign(S,{table:null,pos:null,nOpp:null,hole:[null,null],board:[],street:"setup",
   pot:0,toCall:0,scenario:null,active:null});
   document.getElementById("play").classList.add("hidden");
   document.getElementById("setup").classList.remove("hidden");renderSetup();checkStart();}
