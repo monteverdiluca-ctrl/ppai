@@ -1,0 +1,5 @@
+numpy
+matplotlib
+treys
+# Per il notebook su Colab serve anche:  rlcard[torch]
+# (viene installato dalla prima cella del notebook, non serve in locale)
